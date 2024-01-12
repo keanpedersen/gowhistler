@@ -29,19 +29,20 @@ func (wsdl *WSDL) BuildMessage(message Message) error {
 
 	for _, part := range message.Parts {
 
-		fmt.Printf("Building part %v of type %v\n", part.Name, part.Element)
+		fmt.Printf("\n\nBuilding part %v of type %v\n\n", part.Name, part.Element)
 
 		tp, ok := wsdl.TypeMap[strings.ToLower(part.Element)]
 		if !ok {
 			return errors.Errorf("Could not find element of type %v", part.Element)
 		}
 
-		fmt.Printf("type %v ", tp.TypeName())
+		fmt.Printf("type %v ", makeTypeName(part.Element))
+
 		if err := wsdl.BuildType(tp); err != nil {
 			return err
 		}
 
-		fmt.Printf("var %v %v\n", part.Name, tp.TypeName())
+		fmt.Printf("var %v %v\n", part.Name, makeTypeName(part.Element))
 
 	}
 
@@ -49,8 +50,6 @@ func (wsdl *WSDL) BuildMessage(message Message) error {
 }
 
 func (wsdl *WSDL) BuildType(tp ElementType) error {
-
-	fmt.Printf("type %v ", tp.TypeName())
 
 	if tp.BuildIn != "" {
 		fmt.Println(tp.BuildIn)
@@ -66,7 +65,7 @@ func (wsdl *WSDL) BuildType(tp ElementType) error {
 				if !ok {
 					return errors.Errorf("Could not find reference of type %v:%v", sub.ReferenceNameSpace, sub.Reference)
 				}
-				fmt.Printf("%v__%v ", sub.ReferenceNameSpace, sub.Reference)
+				fmt.Printf(makeTypeName(fmt.Sprintf("%v__%v ", sub.ReferenceNameSpace, sub.Reference)))
 				if err := wsdl.BuildType(subTp); err != nil {
 					return err
 				}
@@ -87,6 +86,14 @@ func (wsdl *WSDL) BuildType(tp ElementType) error {
 
 		}
 		fmt.Println("}")
+	} else if tp.Type != "" {
+		subTp, ok := wsdl.TypeMap[strings.ToLower(tp.Type)]
+		if !ok {
+			return errors.Errorf("Could not find reference of type %v", tp.Type)
+		}
+		if err := wsdl.BuildType(subTp); err != nil {
+			return err
+		}
 	}
 
 	return nil

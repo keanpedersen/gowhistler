@@ -120,19 +120,23 @@ func Parse(url string) (*WSDL, error) {
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:date"] = ElementType{BuildIn: "time.Time"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:string"] = ElementType{BuildIn: "string"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:int"] = ElementType{BuildIn: "int"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:integer"] = ElementType{BuildIn: "int"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:datetime"] = ElementType{BuildIn: "time.Time"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:base64binary"] = ElementType{BuildIn: "string"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:nmtoken"] = ElementType{BuildIn: "string"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:ncname"] = ElementType{BuildIn: "string"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:boolean"] = ElementType{BuildIn: "bool"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:anyuri"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":date"] = ElementType{BuildIn: "time.Time"}
 	ret.TypeMap[":string"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":int"] = ElementType{BuildIn: "int"}
+	ret.TypeMap[":integer"] = ElementType{BuildIn: "int"}
 	ret.TypeMap[":datetime"] = ElementType{BuildIn: "time.Time"}
 	ret.TypeMap[":base64binary"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":nmtoken"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":ncname"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":boolean"] = ElementType{BuildIn: "string"}
+	ret.TypeMap[":anyuri"] = ElementType{BuildIn: "string"}
 
 	for _, elm := range ret.Elements {
 		if elm.NameSpace == "" {
@@ -591,8 +595,18 @@ func (e ElementType) FullName() string {
 }
 
 func (e ElementType) TypeName() string {
-	ret := e.NameSpace + "__" + e.Name
+	return makeTypeName(e.NameSpace + "__" + e.Name)
+}
+
+func makeTypeName(s string) string {
+	ret := s
 	ret = strings.ReplaceAll(ret, ":", "_")
 	ret = strings.ReplaceAll(ret, "/", "_")
-	return ret
+	ret = strings.ReplaceAll(ret, "-", "_")
+	ret = strings.ReplaceAll(ret, ".", "_")
+	return ucFirst(ret)
+}
+
+func ucFirst(s string) string {
+	return strings.ToUpper(s[:1]) + s[1:]
 }
