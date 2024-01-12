@@ -62,8 +62,8 @@ func Parse(url string) (*WSDL, error) {
 	_ = wsdlNamespaceKey
 
 	types := doc.FindElements(`//types[namespace-prefix()='` + wsdlNamespaceKey + `']/schema`)
-	for _, tpelm := range types {
-		elements, types, err := ParseSchema(tpelm, tpelm.SelectAttrValue("targetNamespace", ""), prefixes, url, 0)
+	for i, tpelm := range types {
+		elements, types, err := ParseSchema(tpelm, ret.TargetNamespace, prefixes, fmt.Sprintf("%s-#%v", url, i), 0)
 		if err != nil {
 			return nil, err
 		}
@@ -113,8 +113,26 @@ func Parse(url string) (*WSDL, error) {
 		if tp.NameSpace == "" {
 			tp.NameSpace = ret.TargetNamespace
 		}
-		ret.TypeMap[tp.FullName()] = tp
+		ret.TypeMap[strings.ToLower(tp.FullName())] = tp
 	}
+
+	// add internal types
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:date"] = ElementType{BuildIn: "time.Time"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:string"] = ElementType{BuildIn: "string"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:int"] = ElementType{BuildIn: "int"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:datetime"] = ElementType{BuildIn: "time.Time"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:base64binary"] = ElementType{BuildIn: "string"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:nmtoken"] = ElementType{BuildIn: "string"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:ncname"] = ElementType{BuildIn: "string"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:boolean"] = ElementType{BuildIn: "bool"}
+	ret.TypeMap[":date"] = ElementType{BuildIn: "time.Time"}
+	ret.TypeMap[":string"] = ElementType{BuildIn: "string"}
+	ret.TypeMap[":int"] = ElementType{BuildIn: "int"}
+	ret.TypeMap[":datetime"] = ElementType{BuildIn: "time.Time"}
+	ret.TypeMap[":base64binary"] = ElementType{BuildIn: "string"}
+	ret.TypeMap[":nmtoken"] = ElementType{BuildIn: "string"}
+	ret.TypeMap[":ncname"] = ElementType{BuildIn: "string"}
+	ret.TypeMap[":boolean"] = ElementType{BuildIn: "string"}
 
 	for _, elm := range ret.Elements {
 		if elm.NameSpace == "" {
@@ -125,18 +143,11 @@ func Parse(url string) (*WSDL, error) {
 			elm.ElementType = ret.TargetNamespace + ":" + elm.ElementType
 		}
 
-		elm.ElementType = strings.TrimPrefix(elm.ElementType, "http://www.w3.org/2001/XMLSchema")
-
-		switch elm.ElementType {
-		case ":date", ":string", ":int", ":boolean", ":dateTime", ":base64Binary", ":NMTOKEN", ":NCName":
-			continue
-		}
-
-		tp, ok := ret.TypeMap[elm.ElementType]
+		tp, ok := ret.TypeMap[strings.ToLower(elm.ElementType)]
 		if !ok {
 			panic("Could not find type")
 		}
-		ret.TypeMap[elm.FullName()] = tp
+		ret.TypeMap[strings.ToLower(elm.FullName())] = tp
 	}
 
 	return ret, nil
@@ -360,7 +371,7 @@ func ParseSchema(tpelm *etree.Element, targetNamespace string, prefixes map[stri
 	}
 	parsed[key] = true
 
-	if depth > 10 {
+	if depth > 20 {
 		//log.Println("Recursion depth reached")
 		return nil, nil, nil
 	}
@@ -396,7 +407,7 @@ func ParseSchema(tpelm *etree.Element, targetNamespace string, prefixes map[stri
 				return nil, nil, err
 			}
 
-			ns := tpelm.SelectAttrValue("namespace", "")
+			ns := tpelm.SelectAttrValue("namespace", child.SelectAttrValue("namespace", ""))
 			for _, subElement := range subElements {
 				subElement.Name = strings.ReplaceAll(subElement.Name, ns+":", targetNamespace+":")
 				elements = append(elements, subElement)
@@ -461,6 +472,9 @@ func parseElement(node *etree.Element, prefixes map[string]string, defaultNamesp
 				return elm, nil, err
 			}
 			elm.ElementType = tpElm[0].Name
+			if !strings.Contains(elm.ElementType, ":") {
+				elm.ElementType = defaultNamespace + ":" + elm.ElementType
+			}
 			tps = append(tps, tpElm...)
 		}
 	}
@@ -480,6 +494,8 @@ func parseTypeElement(node *etree.Element, prefixes map[string]string, defaultNa
 	name := node.SelectAttrValue("name", "")
 	if name == "" {
 		tp.Name = fmt.Sprintf("internal_%v", gInternalID)
+		tp.NameSpace = defaultNamespace
+		tp.Internal = true
 		gInternalID++
 	} else {
 		ns, n := nsSplit(name)
@@ -512,12 +528,14 @@ func parseTypeElement(node *etree.Element, prefixes map[string]string, defaultNa
 				continue
 			}
 			if child2.Tag == "sequence" {
-				subElm, tps, err := parseElement(child2, prefixes, defaultNamespace, source)
-				if err != nil {
-					return ret, err
+				for _, seq := range child2.ChildElements() {
+					subElm, tps, err := parseElement(seq, prefixes, defaultNamespace, source)
+					if err != nil {
+						return ret, err
+					}
+					tp.SubElements = append(tp.SubElements, subElm)
+					ret = append(ret, tps...)
 				}
-				tp.SubElements = append(tp.SubElements, subElm)
-				ret = append(ret, tps...)
 			}
 		}
 	}
@@ -558,9 +576,11 @@ func (e Element) FullName() string {
 
 type ElementType struct {
 	Source      string
-	Type        string
 	NameSpace   string
 	Name        string
+	Internal    bool
+	BuildIn     string
+	Type        string
 	SubElements []Element
 	Enum        []string
 	Pattern     string
@@ -568,4 +588,11 @@ type ElementType struct {
 
 func (e ElementType) FullName() string {
 	return e.NameSpace + ":" + e.Name
+}
+
+func (e ElementType) TypeName() string {
+	ret := e.NameSpace + "__" + e.Name
+	ret = strings.ReplaceAll(ret, ":", "_")
+	ret = strings.ReplaceAll(ret, "/", "_")
+	return ret
 }

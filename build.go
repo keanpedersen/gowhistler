@@ -31,42 +31,64 @@ func (wsdl *WSDL) BuildMessage(message Message) error {
 
 		fmt.Printf("Building part %v of type %v\n", part.Name, part.Element)
 
-		element, ok := wsdl.TypeMap[part.Element]
+		tp, ok := wsdl.TypeMap[strings.ToLower(part.Element)]
 		if !ok {
 			return errors.Errorf("Could not find element of type %v", part.Element)
 		}
 
-		if err := wsdl.BuildType(element); err != nil {
+		fmt.Printf("type %v ", tp.TypeName())
+		if err := wsdl.BuildType(tp); err != nil {
 			return err
 		}
+
+		fmt.Printf("var %v %v\n", part.Name, tp.TypeName())
 
 	}
 
 	return nil
 }
 
-func (wsdl *WSDL) BuildType(element ElementType) error {
+func (wsdl *WSDL) BuildType(tp ElementType) error {
 
-	fmt.Printf("Building element %s %v\n", element.Type, element.FullName())
-	/*
-		switch element.Type {
-		case "complex":
-			for _, subElement := range element.SubElements {
-				if err := wsdl.BuildElement(subElement); err != nil {
+	fmt.Printf("type %v ", tp.TypeName())
+
+	if tp.BuildIn != "" {
+		fmt.Println(tp.BuildIn)
+		return nil
+	}
+
+	if len(tp.SubElements) > 0 {
+		fmt.Printf("struct {\n")
+
+		for _, sub := range tp.SubElements {
+			if sub.Reference != "" {
+				subTp, ok := wsdl.TypeMap[strings.ToLower(sub.ReferenceNameSpace+":"+sub.Reference)]
+				if !ok {
+					return errors.Errorf("Could not find reference of type %v:%v", sub.ReferenceNameSpace, sub.Reference)
+				}
+				fmt.Printf("%v__%v ", sub.ReferenceNameSpace, sub.Reference)
+				if err := wsdl.BuildType(subTp); err != nil {
+					return err
+				}
+			} else {
+				fmt.Printf("%v ", sub.Name)
+				subTpName := sub.ElementType
+				if !strings.Contains(sub.ElementType, ":") {
+					subTpName = sub.NameSpace + ":" + subTpName
+				}
+				subTp, ok := wsdl.TypeMap[strings.ToLower(subTpName)]
+				if !ok {
+					return errors.Errorf("Could not find reference of type %v", subTpName)
+				}
+				if err := wsdl.BuildType(subTp); err != nil {
 					return err
 				}
 			}
-		case "reference":
-			elmName := element.ReferenceNameSpace + ":" + element.Reference
-			elm, ok := wsdl.TypeMap[elmName]
-			if !ok {
-				return errors.Errorf("Could not find element of type %v", elmName)
-			}
-			if err := wsdl.BuildElement(elm); err != nil {
-				return err
-			}
+
 		}
-	*/
+		fmt.Println("}")
+	}
+
 	return nil
 }
 
