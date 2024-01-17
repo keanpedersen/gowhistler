@@ -127,6 +127,7 @@ func Parse(url string) (*WSDL, error) {
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:ncname"] = ElementType{BuildIn: "string"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:boolean"] = ElementType{BuildIn: "bool"}
 	ret.TypeMap["http://www.w3.org/2001/xmlschema:anyuri"] = ElementType{BuildIn: "string"}
+	ret.TypeMap["http://www.w3.org/2001/xmlschema:decimal"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":date"] = ElementType{BuildIn: "time.Time"}
 	ret.TypeMap[":string"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":int"] = ElementType{BuildIn: "int"}
@@ -137,6 +138,7 @@ func Parse(url string) (*WSDL, error) {
 	ret.TypeMap[":ncname"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":boolean"] = ElementType{BuildIn: "string"}
 	ret.TypeMap[":anyuri"] = ElementType{BuildIn: "string"}
+	ret.TypeMap[":decimal"] = ElementType{BuildIn: "string"}
 
 	for _, elm := range ret.Elements {
 		if elm.NameSpace == "" {
@@ -541,6 +543,51 @@ func parseTypeElement(node *etree.Element, prefixes map[string]string, defaultNa
 					ret = append(ret, tps...)
 				}
 			}
+			if child2.Tag == "attribute" {
+				if tp.AttributeElements == nil {
+					tp.AttributeElements = make(map[string]string)
+				}
+				attrName := child2.SelectAttrValue("name", "")
+				attrType := child2.SelectAttrValue("type", "")
+				if attrType != "" {
+					tp.AttributeElements[attrName] = parseTypeString(attrType, prefixes)
+				}
+				for _, child3 := range child2.ChildElements() {
+					tps, err := parseTypeElement(child3, prefixes, defaultNamespace, source)
+					if err != nil {
+						return ret, err
+					}
+
+					tp.AttributeElements[attrName] = tps[0].NameSpace + ":" + tps[0].Name
+					ret = append(ret, tps...)
+				}
+			}
+			if child2.Tag == "choice" {
+				for _, seq := range child2.ChildElements() {
+
+					if seq.Tag == "element" {
+						subElm, tps, err := parseElement(seq, prefixes, defaultNamespace, source)
+						if err != nil {
+							return ret, err
+						}
+						tp.ChoiceElements = append(tp.ChoiceElements, subElm)
+						ret = append(ret, tps...)
+					}
+					if seq.Tag == "sequence" {
+						for _, seq2 := range seq.ChildElements() {
+							subElm, tps, err := parseElement(seq2, prefixes, defaultNamespace, source)
+							if err != nil {
+								return ret, err
+							}
+							tp.ChoiceElements = append(tp.ChoiceElements, subElm)
+							ret = append(ret, tps...)
+						}
+					}
+				}
+			}
+			if child2.Tag == "simpleContent" {
+				tp.Type = ":string" // TODO, see CountryIdentificationCodeType
+			}
 		}
 	}
 
@@ -579,15 +626,17 @@ func (e Element) FullName() string {
 }
 
 type ElementType struct {
-	Source      string
-	NameSpace   string
-	Name        string
-	Internal    bool
-	BuildIn     string
-	Type        string
-	SubElements []Element
-	Enum        []string
-	Pattern     string
+	Source            string
+	NameSpace         string
+	Name              string
+	Internal          bool
+	BuildIn           string
+	Type              string
+	SubElements       []Element
+	ChoiceElements    []Element
+	AttributeElements map[string]string
+	Enum              []string
+	Pattern           string
 }
 
 func (e ElementType) FullName() string {
@@ -604,6 +653,7 @@ func makeTypeName(s string) string {
 	ret = strings.ReplaceAll(ret, "/", "_")
 	ret = strings.ReplaceAll(ret, "-", "_")
 	ret = strings.ReplaceAll(ret, ".", "_")
+	ret = strings.ReplaceAll(ret, "#", "_")
 	return ucFirst(ret)
 }
 
