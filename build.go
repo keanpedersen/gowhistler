@@ -74,7 +74,7 @@ func (wsdl *WSDL) BuildMessage(builder *Builder, message Message) error {
 			return err
 		}
 
-		builder.Vars[part.Name] = tp.TypeName()
+		builder.Vars[message.Name+"_"+part.Name] = tp.TypeName()
 
 	}
 
@@ -84,7 +84,7 @@ func (wsdl *WSDL) BuildMessage(builder *Builder, message Message) error {
 func (wsdl *WSDL) BuildType(builder *Builder, tp ElementType) error {
 
 	if tp.BuildIn != "" {
-		builder.Types[tp.TypeName()] = tp.BuildIn
+		//builder.Types[tp.TypeName()] = tp.BuildIn
 		return nil
 	}
 
@@ -99,7 +99,7 @@ func (wsdl *WSDL) BuildType(builder *Builder, tp ElementType) error {
 					return errors.Errorf("Could not find reference of type %v:%v", sub.ReferenceNameSpace, sub.Reference)
 				}
 
-				thisType += fmt.Sprintf("%s %s\n", makeTypeName(fmt.Sprintf("%v__%v ", sub.ReferenceNameSpace, sub.Reference)), subTp.TypeName())
+				thisType += fmt.Sprintf("%s %s `xml:\"%s\"`\n", makeTypeName(fmt.Sprintf("%v__%v ", sub.ReferenceNameSpace, sub.Reference)), subTp.TypeName(), sub.Reference)
 
 				if err := wsdl.BuildType(builder, subTp); err != nil {
 					return err
@@ -126,7 +126,7 @@ func (wsdl *WSDL) BuildType(builder *Builder, tp ElementType) error {
 					return errors.Errorf("Could not find reference of type %v:%v", sub.ReferenceNameSpace, sub.Reference)
 				}
 
-				thisType += fmt.Sprintf("%s *%s\n", makeTypeName(fmt.Sprintf("%v__%v ", sub.ReferenceNameSpace, sub.Reference)), subTp.TypeName())
+				thisType += fmt.Sprintf("%s *%s `xml:\"%s\"`\n", makeTypeName(fmt.Sprintf("%v__%v ", sub.ReferenceNameSpace, sub.Reference)), subTp.TypeName(), sub.Reference)
 
 				if err := wsdl.BuildType(builder, subTp); err != nil {
 					return err

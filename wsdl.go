@@ -644,6 +644,10 @@ func (e ElementType) FullName() string {
 }
 
 func (e ElementType) TypeName() string {
+	if e.BuildIn != "" {
+		return e.BuildIn
+	}
+
 	return makeTypeName(e.NameSpace + "__" + e.Name)
 }
 
