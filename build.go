@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+
+type goTypeName struct {
+	Type string
+	TODO: xml-tag vars
+}
+
 type Builder struct {
 	Types map[string]string
 	Vars  map[string]string
@@ -49,6 +55,7 @@ func (wsdl *WSDL) Build() error {
 	}
 
 	f.WriteString("package output\n\n")
+	f.WriteString("import \"time\"\n\n")
 
 	builder.OutputTypes(f)
 
@@ -74,7 +81,7 @@ func (wsdl *WSDL) BuildMessage(builder *Builder, message Message) error {
 			return err
 		}
 
-		builder.Vars[message.Name+"_"+part.Name] = tp.TypeName()
+		builder.Vars[ucFirst(message.Name+"_"+part.Name)] = tp.TypeName()
 
 	}
 
@@ -89,7 +96,7 @@ func (wsdl *WSDL) BuildType(builder *Builder, tp ElementType) error {
 	}
 
 	thisType := ""
-	if len(tp.SubElements) > 0 || len(tp.ChoiceElements) > 0 {
+	if len(tp.SubElements) > 0 || len(tp.ChoiceElements) > 0 || len(tp.AttributeElements) > 0 {
 		thisType = "struct {\n"
 
 		for _, sub := range tp.SubElements {

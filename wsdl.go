@@ -561,6 +561,9 @@ func parseTypeElement(node *etree.Element, prefixes map[string]string, defaultNa
 					tp.AttributeElements[attrName] = tps[0].NameSpace + ":" + tps[0].Name
 					ret = append(ret, tps...)
 				}
+				if attrType == "" && len(tp.AttributeElements) == 0 {
+					tp.AttributeElements[attrName] = ":string"
+				}
 			}
 			if child2.Tag == "choice" {
 				for _, seq := range child2.ChildElements() {
